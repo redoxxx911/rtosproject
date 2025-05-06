@@ -1,0 +1,72 @@
+
+import serial
+import random
+import time
+from serial.tools import list_ports
+
+# Target UART port (change as needed)
+PORT = "COM3"  # Windows (e.g., COM3)
+
+
+BAUD_RATE = 9600 
+FUZZ_TYPES = [
+    "RANDOM_BYTES", 
+    "BUFFER_OVERFLOW",  
+    "REPEAT_CHAR",  
+    "NULL_BYTES",  
+    "FORMAT_STRING",  
+]
+
+def send_fuzz_payload(ser, payload):
+    try:
+        print(f"[+] Sending: {payload[:50]}...")  # Show first 50 chars
+        ser.write(payload.encode('latin-1')  # Send raw bytes
+        time.sleep(0.5)  # Wait for response
+        if ser.in_waiting:
+            response = ser.read(ser.in_waiting).decode('latin-1', errors='replace')
+            print(f"[!] Response: {response}")
+    except Exception as e:
+        print(f"[!] Error: {e}")
+
+def generate_fuzz_payload(fuzz_type):
+    if fuzz_type == "RANDOM_BYTES":
+        return bytes([random.randint(0, 255) for _ in range(100)]).decode('latin-1', errors='replace')
+    elif fuzz_type == "BUFFER_OVERFLOW":
+        return "A" * 1000  # Classic buffer overflow
+    elif fuzz_type == "REPEAT_CHAR":
+        return "B" * 500  # Repeated char
+    elif fuzz_type == "NULL_BYTES":
+        return "\x00" * 100  # Null bytes
+    elif fuzz_type == "FORMAT_STRING":
+        return "%s%n%x" * 20  # Format string attack
+    else:
+        return "FUZZ" * 50  # Default
+
+def main():
+    # kay3tik availabe ports 
+
+    print("Available ports:")
+    for port in list_ports.comports():
+        print(f"  - {port.device}")
+
+    try:
+        ser = serial.Serial(PORT, BAUD_RATE, timeout=1)
+        print(f"[+] Connected to {PORT} at {BAUD_RATE} baud")
+
+        while True:
+            fuzz_type = random.choice(FUZZ_TYPES)
+            payload = generate_fuzz_payload(fuzz_type)
+            send_fuzz_payload(ser, payload)
+            time.sleep(1)  # Avoid flooding
+
+    except serial.SerialException as e:
+        print(f"[!] Serial error: {e}")
+    except KeyboardInterrupt:
+        print("\n[!] Stopping fuzzer...")
+    finally:
+        if 'ser' in locals() and ser.is_open:
+            ser.close()
+            print("[+] Port closed")
+
+if __name__ == "__main__":
+    main()
